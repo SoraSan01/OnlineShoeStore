@@ -1,3 +1,28 @@
+<?php
+// Function to establish a database connection
+function getDatabaseConnection() {
+    try {
+        return new PDO("mysql:host=localhost;dbname=shoe_store;charset=utf8", "root", "", [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+    } catch (PDOException $e) {
+        echo json_encode(["Result" => "ERROR", "Message" => "Database connection failed: " . htmlspecialchars($e->getMessage())]);
+        exit;
+    }
+}
+
+// Fetch categories and brands from the database
+function fetchCategoriesAndBrands($pdo) {
+    $categories = $pdo->query("SELECT id, name FROM categories")->fetchAll(PDO::FETCH_ASSOC);
+    $brands = $pdo->query("SELECT id, name FROM brands")->fetchAll(PDO::FETCH_ASSOC);
+    return [$categories, $brands];
+}
+
+$pdo = getDatabaseConnection();
+list($categories, $brands) = fetchCategoriesAndBrands($pdo);
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -58,6 +83,26 @@
                         <div class="invalid-feedback">Please provide a product description.</div>
                     </div>
                     <div class="col-md-6">
+                        <label for="productCategory" class="form-label">Category</label>
+                        <select class="form-select" id="productCategory" name="category" required>
+                            <option value="" disabled selected>Select a category</option>
+                            <?php foreach ($categories as $category): ?>
+                                <option value="<?= htmlspecialchars($category['id']); ?>"><?= htmlspecialchars($category['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="invalid-feedback">Please select a category.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="productBrand" class="form-label">Brand</label>
+                        <select class="form-select" id="productBrand" name="brand" required>
+                            <option value="" disabled selected>Select a brand</option>
+                            <?php foreach ($brands as $brand): ?>
+                                <option value="<?= htmlspecialchars($brand['id']); ?>"><?= htmlspecialchars($brand['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="invalid-feedback">Please select a brand.</div>
+                    </div>
+                    <div class="col-md-6">
                         <label for="productImage" class="form-label">Product Image</label>
                         <input type="file" class="form-control" id="productImage" name="image" accept="image/*" required>
                         <div class="invalid-feedback">Please upload a product image.</div>
@@ -109,7 +154,7 @@ $(document).ready(function () {
                     showMessage('danger', data.Message || 'Failed to add product.');
                 }
             },
-            error: function (xhr, status, error) {
+            error: function (xhr) {
                 console.log(xhr.responseText); // Logs detailed error to the console
                 showMessage('danger', `Error: ${xhr.responseText}`);
             },
@@ -121,23 +166,22 @@ $(document).ready(function () {
 
     // Enable Bootstrap validation feedback
     (function () {
-        'use strict'
-        var forms = document.querySelectorAll('.needs-validation')
+        'use strict';
+        var forms = document.querySelectorAll('.needs-validation');
 
-        Array.prototype.slice.call(forms)
-        .forEach(function (form) {
+        Array.prototype.slice.call(forms).forEach(function (form) {
             form.addEventListener('submit', function (event) {
                 if (!form.checkValidity()) {
-                    event.preventDefault()
-                    event.stopPropagation()
+                    event.preventDefault();
+                    event.stopPropagation();
                 }
-                form.classList.add('was-validated')
-            }, false)
-        })
+                form.classList.add('was-validated');
+            }, false);
+        });
     })();
 });
 </script>
-<script src="\Projects\LibraryMS\assets\js\scripts.js"></script>
+<script src="/Projects/LibraryMS/assets/js/scripts.js"></script>
 
 </body>
 </html>

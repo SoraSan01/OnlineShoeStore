@@ -201,22 +201,76 @@ function updateCartDetails() {
     document.getElementById('total-price').innerText = `₱${totalPrice.toFixed(2)}`;
 }
 
-// Checkout with confirmation
 document.getElementById("checkout-btn").addEventListener("click", function () {
-    const selectedItems = document.querySelectorAll('.card.selected').length;
-    if (selectedItems === 0) {
+    const selectedItems = document.querySelectorAll('.card.selected');
+    if (selectedItems.length === 0) {
         showToastNotification("⚠️ Please select at least one item before checkout!", "warning");
         return;
     }
 
+    const lineItems = [];
+    
+    selectedItems.forEach((card) => {
+        const productId = card.getAttribute('data-id');
+        const quantity = parseInt(document.getElementById('quantity-' + productId).innerText);
+        const price = parseFloat(card.getAttribute('data-price'));
+        
+        lineItems.push({
+            price_data: {
+                currency: 'PHP',
+                product_data: {
+                    name: card.getAttribute('data-value'),
+                },
+                unit_amount: price * 100, // Price in cents
+            },
+            quantity: quantity
+        });
+    });
+
     if (confirm("Proceed to checkout?")) {
         showToastNotification("🛒 Redirecting to checkout...", "info");
-        setTimeout(() => {
-            window.location.href = "/Projects/OnlineShoeStore/views/checkout.php";
-        }, 1500);
+        
+        // Sending line_items to the API (adjust the API URL)
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/Projects/OnlineShoeStore/public/api/create_checkout_session.php", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        
+        xhr.send(JSON.stringify({ line_items: lineItems }));
+
+        xhr.onload = function () {
+            const response = JSON.parse(xhr.responseText);
+            console.log(response); // Log the response for debugging
+            if (response.success) {
+                const sessionUrl = response.session_url;  // Extract session URL from response
+                
+                // After successful checkout, save order details
+                saveOrderDetails(lineItems, response.order_id); // Pass line items and order ID
+
+                window.location.href = sessionUrl;  // Redirect to Stripe checkout page
+            } else {
+                showToastNotification("⚠️ Error creating checkout session: " + response.error, "error");
+            }
+        };
     }
 });
 
+// Function to save order details
+function saveOrderDetails(lineItems, orderId) {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/Projects/OnlineShoeStore/public/api/save_order.php", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+
+    xhr.send(JSON.stringify({ line_items: lineItems }));
+
+    xhr.onload = function () {
+        const response = JSON.parse(xhr.responseText);
+        if (response.success) {
+            console.log("Order saved successfully with ID: " + response.order_id);
+        } else {
+            showToastNotification("⚠️ Error saving order: " + response.error, "error");
+        }
+    };
+}
 // Function to show error notifications with Toastify
 function showToastNotification(message, type) {
     let bgColor;

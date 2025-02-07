@@ -2,9 +2,17 @@
 session_start();
 include $_SERVER['DOCUMENT_ROOT'] . "/Projects/OnlineShoeStore/config/connection.php";
 
+// Check if the user is logged in
 $is_logged_in = isset($_SESSION['user_id']);
 $sql = "SELECT * FROM products";
 $result = $conn->query($sql);
+
+// Fetch brands and categories for the filter
+$brandSql = "SELECT * FROM brands";
+$categorySql = "SELECT * FROM categories";
+
+$brandResult = $conn->query($brandSql);
+$categoryResult = $conn->query($categorySql);
 
 function addToCart($productId) {
     global $conn;
@@ -82,20 +90,20 @@ $conn->close();
                 <option value="5000-10000">₱5,000 - ₱10,000</option>
             </select>
 
-            <select id="brandFilder" class="px-4 py-2 border border-gray-300 rounded">
-                <option value="">All Brand</option>
-                <option value="Nike">Nike</option>
-                <option value="Adidas">Adidas</option>
-                <option value="World Balance">World Balance</option>
-                <option value="Under Armor">Under Armor</option>
+            <!-- Brand Filter -->
+            <select id="brandFilter" class="px-4 py-2 border border-gray-300 rounded">
+                <option value="">All Brands</option>
+                <?php while ($brand = $brandResult->fetch_assoc()): ?>
+                    <option value="<?= $brand['id'] ?>"><?= htmlspecialchars($brand['name'], ENT_QUOTES) ?></option>
+                <?php endwhile; ?>
             </select>
 
+            <!-- Category Filter -->
             <select id="categoryFilter" class="px-4 py-2 border border-gray-300 rounded">
-                <option value="">All Category</option>
-                <option value="Rubber Shoes">Rubber Shoes</option>
-                <option value="Black Shoes">Black Shoes</option>
-                <option value="Sneakers">Sneakers</option>
-                <option value="Sandals">Sandals</option>
+                <option value="">All Categories</option>
+                <?php while ($category = $categoryResult->fetch_assoc()): ?>
+                    <option value="<?= $category['id'] ?>"><?= htmlspecialchars($category['name'], ENT_QUOTES) ?></option>
+                <?php endwhile; ?>
             </select>
         </div>
 
@@ -104,7 +112,9 @@ $conn->close();
             <?php while($row = $result->fetch_assoc()): ?>
                 <div class="product-card bg-white p-6 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105" 
                     data-name="<?= htmlspecialchars(strtolower($row['name'])) ?>" 
-                    data-price="<?= $row['price'] ?>">
+                    data-price="<?= $row['price'] ?>" 
+                    data-brand-id="<?= $row['brand_id'] ?>" 
+                    data-category-id="<?= $row['category_id'] ?>">
 
                     <img src="<?= htmlspecialchars($row['image'] ? "/Projects/OnlineShoeStore/uploads/" . $row['image'] : '/default-image.jpg') ?>" 
                         alt="<?= htmlspecialchars($row['description'], ENT_QUOTES) ?>" 
@@ -141,19 +151,27 @@ $conn->close();
     // Search and Filter Functionality
     document.getElementById('searchInput').addEventListener('input', filterProducts);
     document.getElementById('priceFilter').addEventListener('change', filterProducts);
+    document.getElementById('brandFilter').addEventListener('change', filterProducts);
+    document.getElementById('categoryFilter').addEventListener('change', filterProducts);
 
     function filterProducts() {
         let searchValue = document.getElementById('searchInput').value.toLowerCase();
         let priceRange = document.getElementById('priceFilter').value;
-        
+        let brandId = document.getElementById('brandFilter').value;
+        let categoryId = document.getElementById('categoryFilter').value;
+
         document.querySelectorAll('.product-card').forEach(card => {
             let name = card.dataset.name;
             let price = parseFloat(card.dataset.price);
+            let productBrandId = card.dataset.brandId;
+            let productCategoryId = card.dataset.categoryId;
 
             let matchesSearch = name.includes(searchValue);
             let matchesPrice = !priceRange || (price >= priceRange.split('-')[0] && price <= priceRange.split('-')[1]);
+            let matchesBrand = !brandId || productBrandId == brandId;
+            let matchesCategory = !categoryId || productCategoryId == categoryId;
 
-            card.style.display = (matchesSearch && matchesPrice) ? 'block' : 'none';
+            card.style.display = (matchesSearch && matchesPrice && matchesBrand && matchesCategory) ? 'block' : 'none';
         });
     }
 

@@ -1,4 +1,24 @@
-<html lang="en">
+<?php
+session_start();
+
+// Check if the session ID is provided
+if (!isset($_GET['session_id'])) {
+    die("Invalid session ID.");
+}
+
+$session_id = $_GET['session_id'];
+
+// Retrieve the session details from Stripe
+require __DIR__ . '/../vendor/autoload.php';
+\Stripe\Stripe::setApiKey('sk_test_51QpWKWG0lY8F40k3LfzfoC9qu8BVgP2RTJcrDamU0RfSOOeiKqmJFiJ5FRSMDFL5Cxnxe9fPHRPB0cG3lr3Sm6eQ00HCjacFd0');
+
+try {
+    $session = \Stripe\Checkout\Session::retrieve($session_id);
+    $line_items = \Stripe\Checkout\Session::allLineItems($session_id, ['limit' => 100]);
+
+    // Display order confirmation
+    ?>
+    <html lang="en">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -24,3 +44,8 @@
     </div>
 </body>
 </html>
+    <?php
+} catch (\Stripe\Exception\ApiErrorException $e) {
+    die("Error retrieving session: " . $e->getMessage());
+}
+?>
