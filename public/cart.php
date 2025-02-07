@@ -9,8 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"/>
     
     <!-- Add Toastify.js library for toast notifications -->
-     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Toastify/1.13.0/Toastify.min.css"/>
-     <script src="https://cdnjs.cloudflare.com/ajax/libs/Toastify/1.13.0/Toastify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
     <style>
         body { font-family: 'Roboto', sans-serif; }
         .card { cursor: pointer; transition: transform 0.3s, box-shadow 0.3s; }
@@ -25,11 +26,14 @@
 
 <?php
 // Start the session to track user
-session_start();
+// Start the session to track user
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Check if the user is logged in, otherwise redirect to login page
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: /Projects/OnlineShoeStore/views/account/login.php');
     exit();
 }
 
@@ -105,17 +109,8 @@ if (!$result) {
 <script>
 // Toggle selection for the cart items
 function toggleSelection(element) {
-    const price = parseFloat(element.getAttribute('data-price'));
     element.classList.toggle('selected');
-
-    const selectedItems = document.querySelectorAll('.card.selected').length;
-    const totalPrice = Array.from(document.querySelectorAll('.card.selected')).reduce((total, card) => {
-        const quantity = parseInt(document.getElementById('quantity-' + card.getAttribute('data-id')).innerText);
-        return total + (parseFloat(card.getAttribute('data-price')) * quantity);
-    }, 0);
-
-    document.getElementById('selected-items').innerText = 'Selected Items: ' + selectedItems;
-    document.getElementById('total-price').innerText = '$' + totalPrice.toFixed(2);
+    updateCartDetails();
 }
 
 function changeQuantity(event, button, action) {
@@ -127,17 +122,20 @@ function changeQuantity(event, button, action) {
 
     if (action === 'increase') {
         quantity++;
-    } else if (action === 'decrease' && quantity > 1) {
-        quantity--;
+    } else if (action === 'decrease') {
+        if (quantity > 1) {
+            quantity--;
+        } else {
+            showToastNotification('⚠️ Minimum quantity is 1.', 'warning');
+            return;
+        }
     }
 
-    // Update the quantity in the DOM
+    // Update quantity in UI
     quantityElement.innerText = quantity;
 
-    // Send an AJAX request to update the database
+    // Update quantity in database
     updateQuantityInDatabase(productId, quantity);
-
-    // Update cart details (for UI)
     updateCartDetails();
 }
 
@@ -146,39 +144,33 @@ function updateQuantityInDatabase(productId, quantity) {
     xhr.open("POST", "/Projects/OnlineShoeStore/public/api/update_quantity.php", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
-    // Send the data to the server
     xhr.send(`product_id=${productId}&quantity=${quantity}`);
 
     xhr.onload = function () {
         const response = JSON.parse(xhr.responseText);
-
         if (response.success) {
-            console.log("Quantity updated in database");
-        } else if (response.error) {
-            alert(response.error);  // Handle error if updating fails
+            console.log("Quantity updated successfully.");
+        } else {
+            showToastNotification("⚠️ Error updating quantity!", "error");
         }
     };
 }
 
-
 // Remove item from cart with event prevention
 function removeItem(event, button) {
     event.stopPropagation();
-    
+    if (!confirm("Are you sure you want to remove this item from your cart?")) {
+        return;
+    }
+
     const card = button.closest('.card');
-    const productId = card.getAttribute('data-id'); // Get product id from data-id attribute
+    const productId = card.getAttribute('data-id');
 
-    // Send an AJAX request to remove the item from the cart in the database
     removeItemFromDatabase(productId);
-
-    // Remove the item from the DOM
     card.remove();
     
-    // Update the cart details (UI)
     updateCartDetails();
-
-    // Show a success notification using Toastify
-    showToastNotification('Item removed from your cart');
+    showToastNotification('🗑️ Item removed from your cart.', 'success');
 }
 
 // Function to remove item from the database
@@ -187,16 +179,12 @@ function removeItemFromDatabase(productId) {
     xhr.open("POST", "/Projects/OnlineShoeStore/public/api/remove_item.php", true);
     xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 
-    // Send the product_id to the server
     xhr.send(`product_id=${productId}`);
 
     xhr.onload = function () {
         const response = JSON.parse(xhr.responseText);
-
-        if (response.success) {
-            console.log("Item removed from cart successfully.");
-        } else if (response.error) {
-            alert(response.error);  // Handle error if removing fails
+        if (!response.success) {
+            showToastNotification("⚠️ Error removing item!", "error");
         }
     };
 }
@@ -209,93 +197,48 @@ function updateCartDetails() {
         return total + (parseFloat(card.getAttribute('data-price')) * quantity);
     }, 0);
 
-    document.getElementById('selected-items').innerText = 'Selected Items: ' + selectedItems;
-    document.getElementById('total-price').innerText = '₱' + totalPrice.toFixed(2);
+    document.getElementById('selected-items').innerText = `Selected Items: ${selectedItems}`;
+    document.getElementById('total-price').innerText = `₱${totalPrice.toFixed(2)}`;
 }
 
-document.getElementById('checkout-btn').addEventListener('click', async function() {
-    const selectedCards = document.querySelectorAll('.card.selected');
-    if (selectedCards.length === 0) {
-        alert("Please select at least one item to checkout.");
+// Checkout with confirmation
+document.getElementById("checkout-btn").addEventListener("click", function () {
+    const selectedItems = document.querySelectorAll('.card.selected').length;
+    if (selectedItems === 0) {
+        showToastNotification("⚠️ Please select at least one item before checkout!", "warning");
         return;
     }
 
-    const lineItems = Array.from(selectedCards).map(card => {
-        const productId = card.getAttribute('data-id');
-        const quantityElement = document.getElementById('quantity-' + productId);
-        const quantity = quantityElement ? parseInt(quantityElement.innerText) : 1;
-        const price = parseFloat(card.getAttribute('data-price'));
-
-        return {
-            price_data: {
-                currency: 'php', // Change to 'usd' if using US dollars
-                product_data: {
-                    name: card.getAttribute('data-value'), // Product name
-                    // Optionally, you can add more product details here
-                },
-                unit_amount: Math.round(price * 100), // Price in cents
-            },
-            quantity: quantity, // Quantity of the product
-        };
-    });
-
-    try {
-        const response = await fetch('/Projects/OnlineShoeStore/public/api/create_checkout_session.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include', // Ensures session is maintained
-            body: JSON.stringify({ line_items: lineItems }),
-        });
-
-        if (!response.ok) {
-            const errorResponse = await response.json(); // Get the response as JSON
-            console.error('Server Error Response:', errorResponse); // Log the error response
-            throw new Error("Server responded with an error: " + errorResponse.error);
-        }
-
-        const session = await response.json();
-
-        if (session.id) {
-            const stripe = Stripe('pk_test_51QpWKWG0lY8F40k3oe8uyS2HKZDApqngimKM3KN8DbPY2xwVIC3kVuUhBeJ6KwB5UXZE5DEpoRO190XsQo6aheKB00E7pyVLcL');
-            await stripe.redirectToCheckout({ sessionId: session.id });
-        } else {
-            throw new Error("Invalid session ID received.");
-        }
-    } catch (error) {
-        console.error('Checkout Error:', error);
-        showErrorNotification(error.message); // Show user-friendly error notification
+    if (confirm("Proceed to checkout?")) {
+        showToastNotification("🛒 Redirecting to checkout...", "info");
+        setTimeout(() => {
+            window.location.href = "/Projects/OnlineShoeStore/views/checkout.php";
+        }, 1500);
     }
 });
 
-
 // Function to show error notifications with Toastify
-function showErrorNotification(message) {
+function showToastNotification(message, type) {
+    let bgColor;
+    if (type === "success") {
+        bgColor = "linear-gradient(to right, #00b09b, #96c93d)";
+    } else if (type === "error") {
+        bgColor = "linear-gradient(to right, #ff416c, #ff4b2b)";
+    } else if (type === "warning") {
+        bgColor = "linear-gradient(to right, #ff9f00, #ff6f00)";
+    } else {
+        bgColor = "#333";
+    }
+
     Toastify({
         text: message,
-        duration: 5000,  // Time in milliseconds for the toast to stay visible
-        close: true, // Show a close button
-        gravity: "top", // Position: top of the screen
-        position: "right", // Position: right side
-        backgroundColor: "linear-gradient(to right, #FF5F6D, #FFC371)", // Customize the background color
-        stopOnFocus: true, // Stops the toast when it's hovered
+        duration: 3000,
+        close: true,
+        gravity: "top",
+        position: "right",
+        backgroundColor: bgColor,
     }).showToast();
 }
-
-// Function to show success notifications with Toastify
-function showToastNotification(message) {
-    Toastify({
-        text: message,
-        duration: 3000,  // Time in milliseconds for the toast to stay visible
-        close: true, // Show a close button
-        gravity: "top", // Position: top of the screen
-        position: "right", // Position: right side
-        backgroundColor: "linear-gradient(to right, #FF5F6D, #FFC371)", // Customize the background color
-        stopOnFocus: true, // Stops the toast when it's hovered
-    }).showToast();
-}
-
 </script>
 
 </body>

@@ -1,175 +1,173 @@
 <?php
-// Start session to manage user login status
 session_start();
-
-// Database connection
 include $_SERVER['DOCUMENT_ROOT'] . "/Projects/OnlineShoeStore/config/connection.php";
 
-// Check if user is logged in
-$is_logged_in = isset($_SESSION['user_id']); // Assuming you store user ID in session when logged in
-
-// SQL query to fetch products
-$sql = "SELECT * FROM products"; // Assuming the table name is 'products'
+$is_logged_in = isset($_SESSION['user_id']);
+$sql = "SELECT * FROM products";
 $result = $conn->query($sql);
 
-// Function to handle adding product to the cart
 function addToCart($productId) {
-    global $conn; // To access the database connection
-
-    // Check if user is logged in
-    if (isset($_SESSION['user_id'])) {
-        $userId = $_SESSION['user_id'];
-        
-        // Sanitize the product ID to prevent SQL injection
-        $productId = (int)$productId;
-        
-        // Check if the product is already in the cart
-        $sql = "SELECT * FROM cart WHERE user_id = ? AND product_id = ?";
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            echo "<script>alert('Error preparing query.');</script>";
-            return;
-        }
-        
-        $stmt->bind_param("ii", $userId, $productId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
-            // Product is already in the cart, you can update the quantity
-            $row = $result->fetch_assoc();
-            $newQuantity = $row['quantity'] + 1; // Increment quantity
-
-            // Update quantity if product already in cart
-            $updateSql = "UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?";
-            $updateStmt = $conn->prepare($updateSql);
-            $updateStmt->bind_param("iii", $newQuantity, $userId, $productId);
-            $updateStmt->execute();
-
-            if ($updateStmt->affected_rows > 0) {
-                echo "<script>showToast('Product quantity updated in your cart!');</script>";
-            } else {
-                echo "<script>showToast('Failed to update cart.');</script>";
-            }
-        } else {
-            // Product not in cart, so insert a new entry
-            $insertSql = "INSERT INTO cart (user_id, product_id, quantity, price) VALUES (?, ?, ?, ?)";
-            $insertStmt = $conn->prepare($insertSql);
-
-            // Get the product price using the product ID
-            $price = getProductPrice($productId, $conn); // Assume this function fetches the price based on product ID
-            if (!$price) {
-                echo "<script>showToast('Error fetching product price.');</script>";
-                return;
-            }
-
-            $quantity = 1; // Initialize quantity variable
-
-            $insertStmt->bind_param("iiid", $userId, $productId, $quantity, $price); // Bind price as well
-            $insertStmt->execute();
-
-            if ($insertStmt->affected_rows > 0) {
-                echo "<script>showToast('Product added to cart!');</script>";
-            } else {
-                echo "<script>showToast('Failed to add product to cart.');</script>";
-            }
-        }
-
-        // Redirect to the cart page after adding the product
-        echo "<script>setTimeout(function() { window.location.href = '/Projects/OnlineShoeStore/public/cart.php'; });</script>";
-    } else {
-        // Redirect to login page if not logged in
-        echo "<script>window.location.href = '/Projects/OnlineShoeStore/views/Account/login.php';</script>";
+    global $conn;
+    if (!isset($_SESSION['user_id'])) {
+        return json_encode(['success' => false, 'message' => 'You must log in to add items to the cart.']);
     }
-}
-
-function getProductPrice($productId, $conn) {
-    $sql = "SELECT price FROM products WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $productId);
+    
+    $userId = $_SESSION['user_id'];
+    $productId = (int)$productId;
+    
+    $stmt = $conn->prepare("SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?");
+    $stmt->bind_param("ii", $userId, $productId);
     $stmt->execute();
     $result = $stmt->get_result();
     
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
-        return $row['price']; // Return the price
+        $newQuantity = $row['quantity'] + 1;
+        $updateStmt = $conn->prepare("UPDATE cart SET quantity = ? WHERE user_id = ? AND product_id = ?");
+        $updateStmt->bind_param("iii", $newQuantity, $userId, $productId);
+        $updateStmt->execute();
+        return json_encode(['success' => true, 'message' => 'Product quantity updated in your cart!']);
     } else {
-        return false; // If product not found
+        $price = getProductPrice($productId);
+        if (!$price) {
+            return json_encode(['success' => false, 'message' => 'Error fetching product price.']);
+        }
+        
+        $insertStmt = $conn->prepare("INSERT INTO cart (user_id, product_id, quantity, price) VALUES (?, ?, 1, ?)");
+        $insertStmt->bind_param("iid", $userId, $productId, $price);
+        $insertStmt->execute();
+        return json_encode(['success' => true, 'message' => 'Product added to cart!']);
     }
 }
 
-// Handle Add to Cart button click (via GET)
-if (isset($_GET['add_to_cart'])) {
-    $productId = (int) $_GET['add_to_cart'];  // Cast the product ID to an integer
-    addToCart($productId);
+function getProductPrice($productId) {
+    global $conn;
+    $stmt = $conn->prepare("SELECT price FROM products WHERE id = ?");
+    $stmt->bind_param("i", $productId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    return ($result->num_rows > 0) ? $result->fetch_assoc()['price'] : false;
 }
 
-// Close connection
+if (isset($_GET['add_to_cart'])) {
+    echo addToCart((int)$_GET['add_to_cart']);
+    exit;
+}
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shoe Store</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"/>
-    <style>
-        body {
-            font-family: "Roboto", sans-serif;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
 <body class="bg-gray-100">
-    <!-- Navbar -->
     <?php include "includes/navbar.php"; ?>
 
-    <!-- Item Section -->
     <div class="container mx-auto mt-10">
-        <h2 class="text-center text-3xl font-bold mb-8">Browse Our Shoes</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
-            <?php
-            // Check if there are products in the database
-            if ($result->num_rows > 0) {
-                // Loop through the products and display each one
-                while($row = $result->fetch_assoc()) {
-                    // Adjust the image URL to be full path if it's relative
-                    $image_url = (filter_var($row['image'], FILTER_VALIDATE_URL)) ? $row['image'] : "/Projects/OnlineShoeStore/uploads/" . $row['image'];
-                    
-                    echo '
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105">
-                        <img alt="' . htmlspecialchars($row['description'], ENT_QUOTES) . '" class="w-full h-auto rounded-lg mb-4" height="100" src="' . $image_url . '" width="100"/>
-                        <p class="text-gray-700 mb-4">₱' . number_format($row['price'], 2) . '</p>
-                        <h5 class="text-xl font-semibold mb-2">' . htmlspecialchars($row['name'], ENT_QUOTES) . '</h5>
-                        <a href="?add_to_cart=' . $row['id'] . '" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-all">Add to Cart</a>
-                    </div>';
-                }
-            } else {
-                echo "<p>No products available at the moment.</p>";
-            }
-            ?>
+        <!-- Search and Filter Section -->
+        <div class="mb-6 flex flex-wrap gap-4 items-center">
+            <input type="text" id="searchInput" placeholder="Search products..." class="px-4 py-2 border border-gray-300 rounded w-1/2">
+            
+            <select id="priceFilter" class="px-4 py-2 border border-gray-300 rounded">
+                <option value="">All Prices</option>
+                <option value="0-1000">₱0 - ₱1,000</option>
+                <option value="1000-3000">₱1,000 - ₱3,000</option>
+                <option value="3000-5000">₱3,000 - ₱5,000</option>
+                <option value="5000-10000">₱5,000 - ₱10,000</option>
+            </select>
+
+            <select id="brandFilder" class="px-4 py-2 border border-gray-300 rounded">
+                <option value="">All Brand</option>
+                <option value="Nike">Nike</option>
+                <option value="Adidas">Adidas</option>
+                <option value="World Balance">World Balance</option>
+                <option value="Under Armor">Under Armor</option>
+            </select>
+
+            <select id="categoryFilter" class="px-4 py-2 border border-gray-300 rounded">
+                <option value="">All Category</option>
+                <option value="Rubber Shoes">Rubber Shoes</option>
+                <option value="Black Shoes">Black Shoes</option>
+                <option value="Sneakers">Sneakers</option>
+                <option value="Sandals">Sandals</option>
+            </select>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+            <?php while($row = $result->fetch_assoc()): ?>
+                <div class="product-card bg-white p-6 rounded-lg shadow-lg text-center transform transition-transform hover:scale-105" 
+                    data-name="<?= htmlspecialchars(strtolower($row['name'])) ?>" 
+                    data-price="<?= $row['price'] ?>">
+
+                    <img src="<?= htmlspecialchars($row['image'] ? "/Projects/OnlineShoeStore/uploads/" . $row['image'] : '/default-image.jpg') ?>" 
+                        alt="<?= htmlspecialchars($row['description'], ENT_QUOTES) ?>" 
+                        class="w-full h-48 object-cover rounded-lg mb-4">
+
+                    <h5 class="text-xl font-semibold mb-2"><?= htmlspecialchars($row['name'], ENT_QUOTES) ?></h5>
+                    <p class="text-gray-700 mb-4">₱<?= number_format($row['price'], 2) ?></p>
+                    <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-all add-to-cart" data-product-id="<?= $row['id'] ?>">Add to Cart</button>
+                </div>
+            <?php endwhile; ?>
         </div>
     </div>
 
     <script>
-        // Show Toast notification
-        function showToast(message) {
-            let toast = document.createElement('div');
-            toast.classList.add('toast', 'show');
-            toast.innerText = message;
-            document.body.appendChild(toast);
+    // Handle Add to Cart Button
+    document.querySelectorAll('.add-to-cart').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            fetch("?add_to_cart=" + this.dataset.productId)
+                .then(response => response.json())
+                .then(data => {
+                    showToastNotification(data.message, data.success ? "success" : "warning");
 
-            // Hide the toast after 3 seconds
-            setTimeout(function() {
-                toast.classList.remove('show');
-                setTimeout(function() {
-                    toast.remove();
-                }, 500); // Wait for animation to finish
-            }, 3000);
-        }
+                    // Reload the page after 1.5 seconds if adding to cart is successful
+                    if (data.success) {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500); 
+                    }
+                });
+        });
+    });
+
+    // Search and Filter Functionality
+    document.getElementById('searchInput').addEventListener('input', filterProducts);
+    document.getElementById('priceFilter').addEventListener('change', filterProducts);
+
+    function filterProducts() {
+        let searchValue = document.getElementById('searchInput').value.toLowerCase();
+        let priceRange = document.getElementById('priceFilter').value;
+        
+        document.querySelectorAll('.product-card').forEach(card => {
+            let name = card.dataset.name;
+            let price = parseFloat(card.dataset.price);
+
+            let matchesSearch = name.includes(searchValue);
+            let matchesPrice = !priceRange || (price >= priceRange.split('-')[0] && price <= priceRange.split('-')[1]);
+
+            card.style.display = (matchesSearch && matchesPrice) ? 'block' : 'none';
+        });
+    }
+
+    // Toast Notification
+    function showToastNotification(message, type) {
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "top",
+            position: "right",
+            backgroundColor: type === "success" ? "green" : "red",
+        }).showToast();
+    }
     </script>
 </body>
 </html>
