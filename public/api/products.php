@@ -1,8 +1,8 @@
 <?php
 include $_SERVER['DOCUMENT_ROOT'] . "/Projects/OnlineShoeStore/config/connection.php";
 
-// Fetch products from the database
-$sql = "SELECT name, price, image FROM products";
+// Fetch up to 3 products from the database
+$sql = "SELECT name, price, image FROM products LIMIT 3";
 $result = $conn->query($sql);
 
 if (!$result) {

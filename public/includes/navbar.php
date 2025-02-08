@@ -14,18 +14,25 @@ $isLoggedIn = isset($_SESSION['user_id']);
     
     <!-- Navbar Links Section -->
     <div id="navbar-links" class="space-x-4 hidden md:flex">
-      <a class="text-gray-300 hover:text-white transition duration-300" href="index.php">Home</a>
-      <a class="text-gray-300 hover:text-white transition duration-300" href="shop.php">Shop</a>
+      <a class="text-gray-300 hover:text-white transition duration-300" href="/Projects/OnlineShoeStore/public/index.php">Home</a>
+      <a class="text-gray-300 hover:text-white transition duration-300" href="/Projects/OnlineShoeStore/public/shop.php">Shop</a>
       <a class="text-gray-300 hover:text-white transition duration-300" href="#">Contact</a>
       
       <!-- Cart Link with Icon -->
-      <a class="text-gray-300 hover:text-white relative" href="cart.php" aria-label="Shopping Cart">
+      <a class="text-gray-300 hover:text-white relative" href="/Projects/OnlineShoeStore/public/cart.php" aria-label="Shopping Cart">
         <i class="fas fa-shopping-cart text-xl"></i>
         <!-- Cart Item Count -->
         <span id="cart-item-count" class="absolute top-0 right-0 bg-red-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center hidden">
             0
         </span>
       </a>
+
+      <!-- Profile Link -->
+      <?php if ($isLoggedIn): ?>
+        <a class="text-gray-300 hover:text-white transition duration-300" href="/Projects/OnlineShoeStore/views/account/profile.php">Profile</a>
+      <?php else: ?>
+        <a class="text-gray-300 hover:text-white transition duration-300" href="/Projects/OnlineShoeStore/views/account/login.php" onclick="alert('Please log in to access your profile.'); return false;">Profile</a>
+      <?php endif; ?>
 
       <!-- Show Login or Logout Link -->
       <?php if ($isLoggedIn): ?>
@@ -45,9 +52,18 @@ $isLoggedIn = isset($_SESSION['user_id']);
 
   <!-- Mobile Menu -->
   <div id="mobile-menu" class="hidden md:hidden bg-gray-800 p-4 transition-all duration-300 ease-in-out">
-    <a class="block text-gray-300 hover:text-white py-2" href="index.php">Home</a>
-    <a class="block text-gray-300 hover:text-white py-2" href="shop.php">Shop</a>
+    <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/public/index.php">Home</a>
+    <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/public/shop.php">Shop</a>
     <a class="block text-gray-300 hover:text-white py-2" href="#">Contact</a>
+    <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/public/cart.php">Cart</a>
+    
+    <!-- Profile Link -->
+    <?php if ($isLoggedIn): ?>
+      <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/views/account/profile.php">Profile</a>
+    <?php else: ?>
+      <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/views/account/login.php" onclick="alert('Please log in to access your profile.'); return false;">Profile</a>
+    <?php endif; ?>
+
     <?php if ($isLoggedIn): ?>
       <a class="block text-gray-300 hover:text-white py-2" href="/Projects/OnlineShoeStore/views/account/logout.php">Logout</a>
     <?php else: ?>

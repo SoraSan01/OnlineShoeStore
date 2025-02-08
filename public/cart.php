@@ -26,7 +26,6 @@
 
 <?php
 // Start the session to track user
-// Start the session to track user
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -45,14 +44,14 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Get the user_id from the session (assuming you store user_id in the session after login)
+// Get the user_id from the session
 $user_id = $_SESSION['user_id'];
 
-// Fetch cart items for the logged-in user (modify the query to include user_id)
+// Fetch cart items for the logged-in user
 $sql = "SELECT p.name, p.image, p.price, c.quantity, c.product_id 
         FROM cart c 
         JOIN products p ON c.product_id = p.id 
-        WHERE c.user_id = $user_id";  // Make sure to filter by user_id
+        WHERE c.user_id = $user_id";  
 $result = $conn->query($sql);
 
 // Check if the query was successful
@@ -117,7 +116,7 @@ function changeQuantity(event, button, action) {
     event.stopPropagation();
     const card = button.closest('.card');
     const productId = card.getAttribute('data-id');
-    let quantityElement = document.getElementById('quantity-' + productId);
+    const quantityElement = document.getElementById('quantity-' + productId);
     let quantity = parseInt(quantityElement.innerText);
 
     if (action === 'increase') {
@@ -147,11 +146,15 @@ function updateQuantityInDatabase(productId, quantity) {
     xhr.send(`product_id=${productId}&quantity=${quantity}`);
 
     xhr.onload = function () {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-            console.log("Quantity updated successfully.");
-        } else {
-            showToastNotification("⚠️ Error updating quantity!", "error");
+        try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.success) {
+                console.log("Quantity updated successfully.");
+            } else {
+                showToastNotification("⚠️ Error updating quantity!", "error");
+            }
+        } catch (e) {
+            showToastNotification("⚠️ Invalid server response!", "error");
         }
     };
 }
@@ -182,9 +185,13 @@ function removeItemFromDatabase(productId) {
     xhr.send(`product_id=${productId}`);
 
     xhr.onload = function () {
-        const response = JSON.parse(xhr.responseText);
-        if (!response.success) {
-            showToastNotification("⚠️ Error removing item!", "error");
+        try {
+            const response = JSON.parse(xhr.responseText);
+            if (!response.success) {
+                showToastNotification("⚠️ Error removing item!", "error");
+            }
+        } catch (e) {
+            showToastNotification("⚠️ Invalid server response!", "error");
         }
     };
 }
@@ -217,7 +224,7 @@ document.getElementById("checkout-btn").addEventListener("click", function () {
         
         lineItems.push({
             price_data: {
-                currency: 'PHP',
+                currency: 'php',
                 product_data: {
                     name: card.getAttribute('data-value'),
                 },
@@ -230,7 +237,7 @@ document.getElementById("checkout-btn").addEventListener("click", function () {
     if (confirm("Proceed to checkout?")) {
         showToastNotification("🛒 Redirecting to checkout...", "info");
         
-        // Sending line_items to the API (adjust the API URL)
+        // Sending line_items to the API
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/Projects/OnlineShoeStore/public/api/create_checkout_session.php", true);
         xhr.setRequestHeader("Content-Type", "application/json");
@@ -238,39 +245,21 @@ document.getElementById("checkout-btn").addEventListener("click", function () {
         xhr.send(JSON.stringify({ line_items: lineItems }));
 
         xhr.onload = function () {
-            const response = JSON.parse(xhr.responseText);
-            console.log(response); // Log the response for debugging
-            if (response.success) {
-                const sessionUrl = response.session_url;  // Extract session URL from response
-                
-                // After successful checkout, save order details
-                saveOrderDetails(lineItems, response.order_id); // Pass line items and order ID
-
-                window.location.href = sessionUrl;  // Redirect to Stripe checkout page
-            } else {
-                showToastNotification("⚠️ Error creating checkout session: " + response.error, "error");
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    const sessionUrl = response.session_url;  // Extract session URL from response
+                    window.location.href = sessionUrl;  // Redirect to Stripe checkout page
+                } else {
+                    showToastNotification("⚠️ Error creating checkout session: " + response.error, "error");
+                }
+            } catch (e) {
+                showToastNotification("⚠️ Invalid server response!", "error");
             }
         };
     }
 });
 
-// Function to save order details
-function saveOrderDetails(lineItems, orderId) {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/Projects/OnlineShoeStore/public/api/save_order.php", true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-
-    xhr.send(JSON.stringify({ line_items: lineItems }));
-
-    xhr.onload = function () {
-        const response = JSON.parse(xhr.responseText);
-        if (response.success) {
-            console.log("Order saved successfully with ID: " + response.order_id);
-        } else {
-            showToastNotification("⚠️ Error saving order: " + response.error, "error");
-        }
-    };
-}
 // Function to show error notifications with Toastify
 function showToastNotification(message, type) {
     let bgColor;

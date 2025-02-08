@@ -1,6 +1,10 @@
 <?php
-// Include the connection file
+require __DIR__ . '/../../vendor/autoload.php';
 include $_SERVER['DOCUMENT_ROOT'] . "/Projects/OnlineShoeStore/config/connection.php";
+
+session_start();
+
+$error_message = ''; // Initialize error message variable
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST['user_email']);
@@ -21,22 +25,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 // Password matches, start the session and check role
-                session_start();
-                $_SESSION['user_id'] = $user['id']; // Assuming there's an id column
+                $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role'] = $user['role'];
                 
                 // Redirect based on the role
                 if ($user['role'] === 'admin') {
                     header("Location: /Projects/OnlineShoeStore/views/admin/dashboard.php");
                 } else {
-                    header("Location: /Projects/OnlineShoeStore/views/account/login.php"); // Redirect to user dashboard
+                    header("Location: /Projects/OnlineShoeStore/public/shop.php"); // Redirect to user dashboard
                 }
                 exit();
             } else {
                 $error_message = "Incorrect password.";
             }
         } else {
-            // Query to check user existence in the users table (without checking role)
+            // Query to check user existence in the users table
             $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
@@ -47,8 +50,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $user = $result->fetch_assoc();
                 if (password_verify($password, $user['password'])) {
                     // Password matches, start the session
-                    session_start();
-                    $_SESSION['user_id'] = $user['id']; // Assuming there's an id column
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['fullname'] = $user['fullname'];
+                    $_SESSION['email'] = $user['email'];
+                    $_SESSION['address'] = $user['address'];
+                    $_SESSION['phone_number'] = $user['phone_number'];
+                    
                     header("Location: /Projects/OnlineShoeStore/public/shop.php"); // Redirect to user dashboard
                     exit();
                 } else {
@@ -89,7 +96,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </style>
 </head>
 <body class="bg-gradient-to-r from-gray-800 via-gray-900 to-black min-h-screen flex items-center justify-center">
-    <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+    <div class="bg-gray-800 p-8 rounded-lg shadow -lg w-full max-w-md">
         <h3 class="text-2xl font-bold text-center text-white mb-4">Login</h3>
         <div id="toast" class="toast"></div>
         <form method="POST">
@@ -137,7 +144,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }, 3000);
         }
 
-        <?php if (isset($error_message)): ?>
+        <?php if (!empty($error_message)): ?>
             echo "showToast('<?php echo addslashes($error_message); ?>');";
         <?php endif; ?>
     </script>
